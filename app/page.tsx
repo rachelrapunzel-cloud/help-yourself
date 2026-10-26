@@ -1,69 +1,82 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+import Link from "next/link";
+import { LOCALITY, NAME_IS_YOURS_FOR, OWNER_LABELS, SHOP_NAME, SHOW_SPECIMENS } from "@/lib/config";
+import { listGarments, type ListedGarment } from "@/lib/orders";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+function Card({ g, fits }: { g: ListedGarment; fits: boolean }) {
+  const dim = !fits || g.status === "allocated";
+  const over = g.status === "allocated" ? "Gone" : g.status === "held" ? `On hold, ${g.minutesLeft ?? "a few"} min` : null;
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.tsx</code> file.
-          </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <Link href={`/g/${g.id}`} className={"card" + (fits ? "" : " faded")}>
+      <div className={"ph" + (dim ? " dim" : "")}>
+        photo to come
+        {over && <div className="over">{over}</div>}
+      </div>
+      <div className="t">{g.name}</div>
+      <div className="m">
+        Size {g.size}
+        {g.status === "available" && g.condition ? ` · ${g.condition}` : ""}
+      </div>
+    </Link>
+  );
+}
+
+export default async function Home({ searchParams }: { searchParams: Promise<{ size?: string }> }) {
+  const { size = "all" } = await searchParams;
+  const all = await listGarments(SHOW_SPECIMENS);
+  const sizes = ["all", ...Array.from(new Set(all.map((g) => g.size)))];
+  const owners = Object.keys(OWNER_LABELS);
+  return (
+    <>
+      <div className="name">{SHOP_NAME}</div>
+      <div className="lead">
+        {NAME_IS_YOURS_FOR ? (
+          <>
+            Clothes we don&rsquo;t wear any more. <b>Yours for whatever you like, including nothing.</b> You just have to get it home.
+          </>
+        ) : (
+          <>
+            Clothes we don&rsquo;t wear any more. Take what you&rsquo;d wear, <b>give what you like, including nothing</b>, and get it home yourself.
+          </>
+        )}
+      </div>
+      <div className="sub">One garment at a time. No account. Pick up in {LOCALITY}, or book your own courier.</div>
+      <div className="filters">
+        {sizes.map((s) => (
+          <Link key={s} href={s === "all" ? "/" : `/?size=${encodeURIComponent(s)}`} className={size === s ? "on" : ""}>
+            {s === "all" ? "All sizes" : s}
+          </Link>
+        ))}
+      </div>
+      {owners.map((o) => {
+        const list = all.filter((g) => g.owner === o);
+        if (!list.length) return null;
+        const avail = list.filter((g) => g.status === "available").length;
+        return (
+          <section key={o}>
+            <div className="sect">
+              <span>{OWNER_LABELS[o]}</span>
+              <span>{avail} available</span>
+            </div>
+            <div className="grid">
+              {list.map((g) => (
+                <Card key={g.id} g={g} fits={size === "all" || g.size === size} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+      <div className="foot">
+        Gone means someone has it. On hold means someone is deciding; it comes back if they don&rsquo;t finish.
+        {SHOW_SPECIMENS && (
+          <>
+            <br />
+            <br />
+            Specimen content: no real garments or photos yet.
+          </>
+        )}
+      </div>
+    </>
   );
 }
